@@ -340,16 +340,12 @@ fn is_path_group(mut g: Group) -> Option<bool> {
             match tokens.next() {
                 Some(TokenTree::Ident(_)) if is_empty(&mut tokens) => return Some(true),
                 Some(TokenTree::Group(g)) if g.delimiter() != Delimiter::None => return None,
-                Some(TokenTree::Group(g2)) if is_empty(&mut g2.stream().into_iter()) => {
-                    continue;
-                }
+                Some(TokenTree::Group(g2)) if is_empty(&mut g2.stream().into_iter()) => {}
                 Some(TokenTree::Group(g2)) if is_empty(&mut tokens) => {
                     g = g2;
                     break;
                 }
-                Some(TokenTree::Punct(p)) if p.as_char() == '$' => {
-                    continue;
-                }
+                Some(TokenTree::Punct(p)) if p.as_char() == '$' => {}
                 None => return Some(false),
                 _ => return None,
             }
@@ -376,7 +372,7 @@ fn get_next_path_segment<'a>(
         TokenTree::Group(g) if is_path_group(g.clone())? => {}
         // Path segments have to end in an ident-like
         _ => return None,
-    };
+    }
 
     // We allow any number of dollar signs before that
     loop {

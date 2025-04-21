@@ -365,7 +365,7 @@ impl State {
         let mut stream = stream.into_iter();
         if expect_call_literal(stream.next_or(span)) {
             return Ok(None);
-        };
+        }
 
         let group = expect_group(stream.next_or(span), Delimiter::Bracket)?;
 

@@ -101,8 +101,8 @@ impl ToTokens for Rule {
 pub struct Rules {
     metas: Vec<TokenTree>,
     macro_name: Ident,
-    eager_rules: Vec<Rule>,
-    pure_rules: Vec<Rule>,
+    eager: Vec<Rule>,
+    pure: Vec<Rule>,
 }
 impl ToTokens for Rules {
     fn to_tokens(&self, tokens: &mut TokenStream) {
@@ -112,11 +112,11 @@ impl ToTokens for Rules {
         self.macro_name.to_tokens(tokens);
 
         let mut rules = TokenStream::new();
-        for rule in &self.eager_rules {
+        for rule in &self.eager {
             rule.to_tokens(&mut rules);
         }
         // Put the pure version after so eager is always tried first
-        for rule in &self.pure_rules {
+        for rule in &self.pure {
             rule.to_tokens(&mut rules);
         }
         Group::new(Delimiter::Brace, rules).to_tokens(tokens);
@@ -195,8 +195,8 @@ pub fn expand_rules(
     Ok(Rules {
         metas,
         macro_name,
-        eager_rules,
-        pure_rules,
+        eager: eager_rules,
+        pure: pure_rules,
     })
 }
 
