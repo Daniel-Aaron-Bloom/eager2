@@ -1,27 +1,6 @@
-[package]
-name = "eager2"
-version = "1.0.0"
-authors = ["Daniel Bloom"]
-edition = "2021"
-categories = ["development-tools"]
-description = "Proc-macros for eager macro expansion"
-documentation = "https://docs.rs/eager2"
-license = "MIT"
-repository = "https://github.com/Daniel-Aaron-Bloom/eager2"
-readme = "README.md"
+[workspace]
+resolver = "2"
+members = ["eager2", "eager2-core"]
 
-[lib]
-proc-macro = true
-path = "src/lib.rs"
-
-[dependencies]
-convert_case = "0.8.0"
-dyn-clone = "1.0.19"
-litrs = "0.4.1"
-proc-macro-crate = "3"
-proc-macro-error2 = { version = "2", default-features = false }
-proc-macro2 = "1"
-quote = "1"
-
-[features]
-trace_macros = ["proc-macro-error2/nightly"]
+[workspace.dependencies]
+eager2-core = { path = "./eager2-core" }

@@ -160,11 +160,12 @@
 //! correct paths. The recommended convention is to add:
 //! ```ignore
 //! #[doc(hidden)]
-//! pub use eager2;
+//! pub extern crate eager2;
 //! ```
 //!
 //! to the root of your crate and to utilize the `$crate::eager2::` prefix to call any macros when
-//! in a lazy environment (eager environments should not require any prefix).
+//! in a lazy environment (eager environments should not require any prefix, but will identify macro
+//! items with the `$crate::eager2::` as belonging to this crate).
 //!
 //! # Documentation Convention
 //!
@@ -197,14 +198,12 @@
 #![allow(clippy::enum_glob_use)]
 
 use proc_macro::TokenStream;
-use proc_macro_error2::proc_macro_error;
 
-mod egroup;
 mod exec;
 mod impls;
+mod init;
+mod parse;
 mod rules;
-mod state;
-mod utils;
 
 /// [[eager!](macro.eager.html)] Declares [eager!](macro.eager.html)-enabled macros.
 ///
@@ -226,7 +225,7 @@ mod utils;
 ///
 /// Where possible, users are encourage to switch to [`#[eager_macro]`][macro@eager_macro].
 ///
-/// Wraps the usual `macro_rules!` syntax. Prior to any macros_rules an identifier may be given,
+/// Wraps the usual `macro_rules!` syntax. Prior to any `macros_rules` an identifier may be given,
 /// preceded by '$'. Then any number of macro declarations can be given using the usual
 /// `macro_rules!` syntax. Documentation and attributes are also given in the
 /// usual way just before each `macro_rules!`, i.e. inside `eager_macro_rules!`.
@@ -234,12 +233,12 @@ mod utils;
 /// Some restrictions apply to the `macro_rules!` declarations:
 ///
 /// * `macro_rules!` should avoid using identifiers that start with `__eager2_ident_`. This is
-/// because in order to make macros eager, `eager_macro_rules` needs to add it's own unique
-/// fragment identifier that does conflict with any of those present in the `macro_rules`. If
-/// absolutely necessary, it is possible to override this identifier by providing an alternative,
-/// prefixed with the token `$` as the first tokens to `eager_macro_rules`.
+///   because in order to make macros eager, `eager_macro_rules` needs to add it's own unique
+///   fragment identifier that does conflict with any of those present in the `macro_rules`. If
+///   absolutely necessary, it is possible to override this identifier by providing an alternative,
+///   prefixed with the token `$` as the first tokens to `eager_macro_rules`.
 /// * No macros should use (either in calling or expansion) the literal `0𓊆eager2𓊇` as their
-/// first token, as this could conflict with the way eager expansion state is managed.
+///   first token, as this could conflict with the way eager expansion state is managed.
 ///
 /// # Examples
 ///
@@ -265,8 +264,8 @@ mod utils;
 /// ```
 /// where `()=>{};` is the list of rules that comprise the macro.
 #[proc_macro]
-#[proc_macro_error]
 pub fn eager_macro_rules(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     rules::eager_macro_rules(stream.into()).into()
 }
 
@@ -280,12 +279,12 @@ pub fn eager_macro_rules(stream: TokenStream) -> TokenStream {
 /// Some restrictions apply to the `macro_rules!` declarations:
 ///
 /// * `macro_rules!` should avoid using identifiers that start with `__eager2_ident_`. This is
-/// because in order to make macros eager, `eager_macro` needs to add it's own unique
-/// fragment identifier that does conflict with any of those present in the `macro_rules`. If
-/// absolutely necessary, it is possible to override this identifier by providing an alternative as
-/// a parameter, i.e. `#[eager_macro(__my_unused_ident_name)]`.
+///   because in order to make macros eager, `eager_macro` needs to add it's own unique
+///   fragment identifier that does conflict with any of those present in the `macro_rules`. If
+///   absolutely necessary, it is possible to override this identifier by providing an alternative as
+///   a parameter, i.e. `#[eager_macro(__my_unused_ident_name)]`.
 /// * No macros should use (either in calling or expansion) the literal `0𓊆eager2𓊇` as their
-/// first token, as this could conflict with the way eager expansion state is managed.
+///   first token, as this could conflict with the way eager expansion state is managed.
 ///
 /// # Examples
 ///
@@ -320,8 +319,8 @@ pub fn eager_macro_rules(stream: TokenStream) -> TokenStream {
 /// original expansion of the rule.
 ///
 #[proc_macro_attribute]
-#[proc_macro_error]
 pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     rules::eager_macro(attr.into(), stream.into()).into()
 }
 
@@ -350,9 +349,9 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 /// consumer. This means:
 ///
 /// * If a macro call `b!{..}` is given as an argument to another macro `a!` (i.e. `a!(b!{...})`),
-/// the inner macro (`b!`) will be expanded first.
+///   the inner macro (`b!`) will be expanded first.
 /// * All macros will be fully expanded before `eager!` expands. Therefore, otherwise illegal
-/// intermediate expansion steps are possible.
+///   intermediate expansion steps are possible.
 ///
 /// `eager!` does not work with any macro; only macros declared using
 /// [`#[eager_macro]`][macro@eager_macro] or [`eager_macro_rules!`] may be used. Such macros are
@@ -551,8 +550,8 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 /// inside an `eager!` block. That said, we probably should enable it so that others may later use
 /// it in eager environments.
 #[proc_macro]
-#[proc_macro_error]
 pub fn eager(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eval(stream.into(), true).into()
 }
 
@@ -564,8 +563,8 @@ pub fn eager(stream: TokenStream) -> TokenStream {
 ///
 /// [environments]: ./index.html#environments
 #[proc_macro]
-#[proc_macro_error]
 pub fn lazy(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eval(stream.into(), false).into()
 }
 
@@ -578,8 +577,8 @@ pub fn lazy(stream: TokenStream) -> TokenStream {
 ///
 /// [environments]: ./index.html#environments
 #[proc_macro]
-#[proc_macro_error]
 pub fn suspend_eager(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "suspend_eager").into()
 }
 
@@ -593,8 +592,8 @@ pub fn suspend_eager(stream: TokenStream) -> TokenStream {
 ///
 /// [`cfg`]: https://doc.rust-lang.org/reference/conditional-compilation.html#the-cfg-attribute
 #[proc_macro]
-#[proc_macro_error]
 pub fn cfg(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "cfg").into()
 }
 
@@ -614,8 +613,8 @@ pub fn cfg(stream: TokenStream) -> TokenStream {
 ///
 /// This is an `eager!`-enabled version of [`std::column`].
 #[proc_macro]
-#[proc_macro_error]
 pub fn column(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "column").into()
 }
 
@@ -627,8 +626,8 @@ pub fn column(stream: TokenStream) -> TokenStream {
 ///
 /// This is an `eager!`-enabled version of [`std::compile_error`].
 #[proc_macro]
-#[proc_macro_error]
 pub fn compile_error(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "compile_error").into()
 }
 
@@ -641,8 +640,8 @@ pub fn compile_error(stream: TokenStream) -> TokenStream {
 /// Integer and floating point literals are [stringified](core::stringify) in order to be
 /// concatenated.
 #[proc_macro]
-#[proc_macro_error]
 pub fn concat(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "concat").into()
 }
 
@@ -651,8 +650,8 @@ pub fn concat(stream: TokenStream) -> TokenStream {
 /// This macro will expand to the value of the named environment variable at
 /// compile time, yielding an expression of type `&'static str`
 #[proc_macro]
-#[proc_macro_error]
 pub fn env(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "env").into()
 }
 
@@ -661,10 +660,10 @@ pub fn env(stream: TokenStream) -> TokenStream {
 /// If the named environment variable is present at compile time, this will expand into an
 /// expression of type `Option<&'static str>` whose value is `Some` of the value of the environment
 /// variable (a compilation error will be emitted if the environment variable is not a valid Unicode
-/// string). If the environment variable is not present, then this will expand to `None``.
+/// string). If the environment variable is not present, then this will expand to `None`.
 #[proc_macro]
-#[proc_macro_error]
 pub fn option_env(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "option_env").into()
 }
 
@@ -682,8 +681,8 @@ pub fn option_env(stream: TokenStream) -> TokenStream {
 ///
 /// This is an `eager!`-enabled version of [`std::file`].
 #[proc_macro]
-#[proc_macro_error]
 pub fn file(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "file").into()
 }
 
@@ -700,8 +699,8 @@ pub fn file(stream: TokenStream) -> TokenStream {
 /// for instance, an invocation with a Windows path containing backslashes `\` would not
 /// compile correctly on Unix.
 #[proc_macro]
-#[proc_macro_error]
 pub fn include(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "include").into()
 }
 /// [[eager!](macro.eager.html)] Includes a file as a reference to a byte array.
@@ -713,8 +712,8 @@ pub fn include(stream: TokenStream) -> TokenStream {
 ///
 /// This macro will yield an expression of type &'static [u8; N] which is the contents of the file.
 #[proc_macro]
-#[proc_macro_error]
 pub fn include_bytes(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "include_bytes").into()
 }
 
@@ -728,8 +727,8 @@ pub fn include_bytes(stream: TokenStream) -> TokenStream {
 /// This macro will yield an expression of type `&'static str` which is the
 /// contents of the file.
 #[proc_macro]
-#[proc_macro_error]
 pub fn include_str(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "include_str").into()
 }
 
@@ -747,8 +746,8 @@ pub fn include_str(stream: TokenStream) -> TokenStream {
 /// but rather the first macro invocation leading up to the invocation
 /// of the `line!` macro.
 #[proc_macro]
-#[proc_macro_error]
 pub fn line(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "line").into()
 }
 
@@ -760,8 +759,8 @@ pub fn line(stream: TokenStream) -> TokenStream {
 /// leading back up to the crate root. The first component of the path
 /// returned is the name of the crate currently being compiled.
 #[proc_macro]
-#[proc_macro_error]
 pub fn module_path(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "module_path").into()
 }
 
@@ -774,8 +773,8 @@ pub fn module_path(stream: TokenStream) -> TokenStream {
 /// Note that the expanded results of the input tokens may change in the
 /// future. You should be careful if you rely on the output.
 #[proc_macro]
-#[proc_macro_error]
 pub fn stringify(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "stringify").into()
 }
 
@@ -805,7 +804,7 @@ pub fn stringify(stream: TokenStream) -> TokenStream {
 /// * `f` or `from`: Splits string based on the boundaries associated with that case.  For example, `"snake"` case splits on underscores `_` and `"camel"` splits based on lowercase characters followed by uppercase characters `aA`.
 /// * `b` or `boundaries`: Specify precisely what conditions should be used for splitting a string into words.  Whatever boundaries are present in the boundary string will be used against the input. Any example can do, but a nice way to specify is to separate boundaries with a `:`.  For example, `aA:a1:1a` will split based on lowercase followed by uppercase, lowercase followed by and preceded by a digit.
 /// * `p` or `pattern`: Transforms the words of the input based on a pattern.  A pattern describes the order of "word cases".  For example, the camel pattern is a lowercase word followed by capitalized words, like in camel case, while the lower pattern is just lowercased words, like in snake case.
-/// * `d` or `delimeter`: Join the words using a delimeter. By default, the delimeter is an empty string, as used in camel case.
+/// * `d` or `delimiter`: Join the words using a delimiter. By default, the delimiter is an empty string, as used in camel case.
 ///
 /// In general, you only need to use `t: "snake"`, `t: "UpperCamelCase"`, or `t: "CONSTANT"`.
 ///
@@ -822,8 +821,8 @@ pub fn stringify(stream: TokenStream) -> TokenStream {
 ///
 /// [ccase]: https://github.com/rutrum/ccase
 #[proc_macro]
-#[proc_macro_error]
 pub fn ccase(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "ccase").into()
 }
 
@@ -854,8 +853,8 @@ pub fn ccase(stream: TokenStream) -> TokenStream {
 /// assert_eq!(v, 10);
 /// ```
 #[proc_macro]
-#[proc_macro_error]
 pub fn eager_coalesce(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "eager_coalesce").into()
 }
 
@@ -867,11 +866,11 @@ pub fn eager_coalesce(stream: TokenStream) -> TokenStream {
 ///
 /// `eager_if!` should be followed by 3 token groups.
 /// * The first group should contain a single boolean literal the value of which determines which
-/// branch the expression will expand to. By convention this first tree uses `[]` delimeters.
+///   branch the expression will expand to. By convention this first tree uses `[]` delimiter.
 /// * The second group contains the tokens for the `true` case. By convention it uses `{}`
-/// delimeters.
+///   delimiter.
 /// * The third group contains the tokens for the `false` case. By convention it uses `{}`
-/// delimeters.
+///   delimiter.
 ///
 /// # Examples
 /// ```
@@ -883,8 +882,8 @@ pub fn eager_coalesce(stream: TokenStream) -> TokenStream {
 /// assert_eq!(v, 10);
 /// ```
 #[proc_macro]
-#[proc_macro_error]
 pub fn eager_if(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "eager_if").into()
 }
 
@@ -922,8 +921,8 @@ pub fn eager_if(stream: TokenStream) -> TokenStream {
 /// assert!(r);
 /// ```
 #[proc_macro]
-#[proc_macro_error]
 pub fn token_eq(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "token_eq").into()
 }
 
@@ -946,7 +945,7 @@ pub fn token_eq(stream: TokenStream) -> TokenStream {
 /// assert_eq!(v, 10);
 /// ```
 #[proc_macro]
-#[proc_macro_error]
 pub fn unstringify(stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
     impls::eager_wrap(stream.into(), "unstringify").into()
 }

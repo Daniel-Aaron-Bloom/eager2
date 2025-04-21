@@ -35,7 +35,7 @@ fn pattern_only() {
 }
 
 #[test]
-fn delimeter() {
+fn delimiter() {
     let r = eager! {ccase!("myVarName", p: "sentence", d: ".")};
     assert_eq!(r, "My.var.name");
 }

@@ -1,15 +1,16 @@
 use std::mem;
 
-use litrs::Literal;
-use proc_macro2::{token_stream, Delimiter, Group, Ident, Spacing, Span, TokenStream, TokenTree};
-use proc_macro_error2::abort;
-use proc_macro_error2::{Diagnostic, ResultExt};
-use quote::{ToTokens, TokenStreamExt};
-
-use crate::egroup::{EfficientGroupT, EfficientGroupV};
-use crate::exec::ExecutableMacroType;
-#[allow(clippy::wildcard_imports)]
-use crate::utils::*;
+use crate::{
+    consts::{EAGER_SIGIL, LAZY_SIGIL},
+    egroup::{EfficientGroupT, EfficientGroupV},
+    exec::ExecutableMacroType,
+    parse::{
+        expect_call_literal, expect_group, expect_mode, MacroPathSegments, MacroPathType, Param,
+    },
+    pm::{token_stream, Delimiter, Group, Ident, Literal, Span, ToTokens, TokenStream, TokenTree},
+    utils::{eager_data, NextOr, PopNext},
+    Error,
+};
 
 /// Mode is the recordable state of the macro execution environment.
 ///
@@ -32,6 +33,7 @@ impl TryFrom<&'_ str> for Mode {
 }
 
 impl Mode {
+    #[must_use]
     pub fn eager(b: bool) -> Self {
         if b {
             Self::Eager
@@ -39,16 +41,11 @@ impl Mode {
             Self::Lazy
         }
     }
-    fn from(span: Span, t: Option<TokenTree>) -> Self {
-        let i = match t {
-            Some(TokenTree::Ident(i)) => i,
-            None => abort!(span, "{}", SIGIL_ERROR),
-            Some(t) => abort!(t, "{}", SIGIL_ERROR),
-        };
-        match i.to_string().as_str() {
-            LAZY_SIGIL => Self::Lazy,
-            EAGER_SIGIL => Self::Eager,
-            _ => abort!(i, "{}", SIGIL_ERROR),
+    #[must_use]
+    pub fn sigil(self) -> &'static str {
+        match self {
+            Self::Eager => EAGER_SIGIL,
+            Self::Lazy => LAZY_SIGIL,
         }
     }
 }
@@ -60,12 +57,12 @@ impl ToTokens for Mode {
             Self::Lazy => LAZY_SIGIL,
         };
 
-        tokens.append(Ident::new(sigil, Span::call_site()));
+        Ident::new(sigil, Span::call_site()).to_tokens(tokens);
     }
 }
 
 #[derive(Debug)]
-struct Suspend;
+pub struct Suspend;
 
 impl TryFrom<&'_ str> for Suspend {
     type Error = ();
@@ -86,32 +83,8 @@ enum MacroType {
 }
 
 impl MacroType {
-    fn try_new(found_crate: &str, tokens: &[TokenTree], mode_only: bool) -> Option<Self> {
-        fn token_is(tt: &TokenTree, s: &str) -> bool {
-            let TokenTree::Ident(i) = tt else {
-                unreachable!()
-            };
-            i == s
-        }
-        fn tokens_are<'a>(
-            tokens: &[TokenTree],
-            i: impl IntoIterator<Item = (usize, &'a str)>,
-        ) -> bool {
-            i.into_iter().all(|(i, s)| token_is(&tokens[i], s))
-        }
-        fn ident_to_string(tt: &TokenTree) -> String {
-            let TokenTree::Ident(i) = tt else {
-                unreachable!()
-            };
-            i.to_string()
-        }
-
-        enum PathCrateErr {
-            NoCrate,
-            DollarCrate,
-        }
-        use PathCrateErr::*;
-
+    fn try_new(ty: MacroPathType, mode_only: bool) -> Option<Self> {
+        #[derive(Debug)]
         enum IgnoreMode {
             DoNot,
             Prelude,
@@ -120,43 +93,35 @@ impl MacroType {
             Alloc,
         }
 
-        let crate_i = match tokens.len() {
-            // Zero isn't enough
-            // One token is just a `!` which isn't enough
-            0 | 1 => return None,
-
-            // e.g. [`eager`, `!`]
-            2 => Err(NoCrate),
-
-            // e.g. [`eager2`, `:`, `:`, `eager`, `!`]
-            5 => Ok(0),
-            // e.g. [`:`, `:`, `eager2`, `:`, `:`, `eager`, `!`]
-            7 => Ok(2),
-            // e.g. [`$`, `crate`, `:`, `:`, `eager2`, `:`, `:`, `eager`, `!`]
-            9 if tokens_are(tokens, [(1, "crate"), (4, "eager2")]) => Err(DollarCrate),
-            _ if mode_only => return None,
-            _ => return Some(Self::Unknown),
-        };
-        let crate_name = crate_i.map(|i| ident_to_string(&tokens[i]));
-        let crate_name = crate_name.as_ref().map(String::as_str);
-
-        let (ignore, exec) = match crate_name {
-            // e.g. [`eager`, `!`]
-            Err(NoCrate) => (IgnoreMode::Prelude, true),
-
-            // e.g. [`$`, `crate`, `:`, `:`, `eager2`, `:`, `:`, `eager`, `!`]
-            Err(DollarCrate) => (IgnoreMode::DoNot, true),
-
-            // e.g. [`eager2`, `:`, `:`, `eager`, `!`]
-            // e.g. [`:`, `:`, `eager2`, `:`, `:`, `eager`, `!`]
-            Ok("std") => (IgnoreMode::Std, false),
-            Ok("core") => (IgnoreMode::Core, false),
-            Ok("alloc") => (IgnoreMode::Alloc, false),
-            Ok(s) if s == found_crate => (IgnoreMode::DoNot, true),
-            Ok(_) => return None,
+        let (macro_name, ignore, exec) = match (ty, mode_only) {
+            (MacroPathType::CrateRootMacro { .. }, true) => return None,
+            (
+                MacroPathType::CrateRootMacro {
+                    crate_name,
+                    macro_name,
+                    ..
+                },
+                false,
+            ) => {
+                let ignore = match crate_name.as_str() {
+                    "std" => IgnoreMode::Std,
+                    "core" => IgnoreMode::Core,
+                    "alloc" => IgnoreMode::Alloc,
+                    _ => return Some(Self::Unknown),
+                };
+                (macro_name, ignore, false)
+            }
+            (MacroPathType::UnpathedMacro { macro_name }, _) => {
+                (macro_name, IgnoreMode::Prelude, true)
+            }
+            (
+                MacroPathType::DollarCrateRootMacro { macro_name }
+                | MacroPathType::Eager2CrateRootMacro { macro_name, .. }
+                | MacroPathType::ReExportMacro { macro_name },
+                _,
+            ) => (macro_name, IgnoreMode::DoNot, true),
         };
 
-        let macro_name = ident_to_string(&tokens[tokens.len() - 2]);
         let macro_name = macro_name.as_str();
 
         // Try mode switches first
@@ -182,7 +147,7 @@ impl MacroType {
         match (ignore, macro_name) {
             (
                 IgnoreMode::Prelude | IgnoreMode::Std | IgnoreMode::Core,
-                "assert" | "assert_eq" | "assert_new" | "debug_assert" | "debug_assert_eq"
+                "assert" | "assert_eq" | "assert_ne" | "debug_assert" | "debug_assert_eq"
                 | "debug_assert_ne" | "format_args" | "matches" | "panic" | "todo" | "try"
                 | "unimplemented" | "unreachable" | "write" | "writeln",
             )
@@ -237,58 +202,16 @@ struct SuspendTrailingMacro {
 
 impl TrailingMacro {
     fn try_new(
-        found_crate: &str,
         tokens: &[TokenTree],
         mode_only: bool,
     ) -> Result<Option<Self>, SuspendTrailingMacro> {
-        let offset = {
-            let mut iter = tokens.iter().enumerate().rev();
-            match iter.next() {
-                // Exclamation found, continue checking
-                Some((_, TokenTree::Punct(p))) if p.as_char() == '!' => {}
-                // No exclamation
-                None | Some(_) => return Ok(None),
-            }
-
-            loop {
-                match iter.next() {
-                    // All tokens in the vec are part of macro path
-                    // len = 1 + 3*n; (`:` `:` `ident`)+ `!`
-                    None => break 0,
-                    // Continue checking on ident
-                    Some((_, TokenTree::Ident(_))) => {}
-                    // len = 1 + 3*n; (`:` `:` `ident`)+
-                    Some((i, _)) => break i + 1,
-                }
-                match iter.next() {
-                    // All tokens in the vec are part of macro path
-                    // len = 2 + 3*n; (`ident` `:` `:`)+ `ident` `!`
-                    None => break 0,
-                    // Continue checking on colon
-                    Some((_, TokenTree::Punct(p))) if p.as_char() == ':' => {}
-                    // Break on dollar sign
-                    // len = 3 + 3*n; `$` (`ident` `:` `:`)+ `ident` `!`
-                    Some((i, TokenTree::Punct(p))) if p.as_char() == '$' => break i,
-                    // Something other than colon, so end and exclude
-                    // len = 2 + 3*n; (`ident` `:` `:`)+ `ident` `!`
-                    Some((i, _)) => break i + 1,
-                }
-                match iter.next() {
-                    // All tokens in the vec except the head colon are part of macro path
-                    // len = 2 + 3*n; (`ident` `:` `:`)+ `ident` `!`
-                    None => break 1,
-                    // Continue checking on second colon
-                    Some((_, TokenTree::Punct(p)))
-                        if p.as_char() == ':' && p.spacing() == Spacing::Joint => {}
-                    // Something other than second colon, so end and exclude head colon
-                    // len = 2 + 3*n; (`ident` `:` `:`)+ `ident` `!`
-                    Some((i, _)) => break i + 2,
-                }
-            }
+        let Some(path) = MacroPathSegments::try_new(tokens) else {
+            return Ok(None);
         };
+        let offset = tokens.len() - path.tokens.len();
 
         Ok(Some(
-            match MacroType::try_new(found_crate, &tokens[offset..], mode_only) {
+            match path.ty.and_then(|ty| MacroType::try_new(ty, mode_only)) {
                 None => return Ok(None),
                 Some(MacroType::Suspend(_)) => return Err(SuspendTrailingMacro { offset }),
                 Some(MacroType::ModeSwitch(mode)) => {
@@ -330,13 +253,14 @@ impl SuspendTrailingMacro {
         tokens.truncate(self.offset);
     }
 }
-
 pub struct MacroPath {
     pub segments: Vec<TokenTree>,
 }
 impl ToTokens for MacroPath {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.append_all(self.segments.iter());
+        for token in &self.segments {
+            token.to_tokens(tokens);
+        }
     }
 }
 enum Stack {
@@ -355,13 +279,12 @@ impl Stack {
 }
 impl ToTokens for Stack {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        use Stack::*;
         match self {
-            Empty => {
-                tokens.append(Group::new(Delimiter::Bracket, TokenStream::new()));
+            Stack::Empty => {
+                Group::new(Delimiter::Bracket, TokenStream::new()).to_tokens(tokens);
             }
-            Raw(g) => g.to_tokens(tokens),
-            Processed(s, _) => s.to_tokens(tokens),
+            Stack::Raw(g) => g.to_tokens(tokens),
+            Stack::Processed(s, _) => s.to_tokens(tokens),
         }
     }
 }
@@ -389,7 +312,33 @@ impl ToTokens for State {
             state.extend(stream.clone());
         }
 
-        tokens.append(Group::new(self.delim, state));
+        Group::new(self.delim, state).to_tokens(tokens);
+    }
+}
+
+pub enum ProcessingResult<'a> {
+    Partial(MacroPath, &'a Literal, State, TokenStream),
+    Done(FullyProccesedState),
+}
+
+impl ToTokens for ProcessingResult<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            // If we were eager and finished, just output the finished result
+            Self::Done(processed) => processed.to_tokens(tokens),
+
+            // If we were eager and didn't finish it means we found an external
+            // eager macro we need to call, pass control over to them
+            // and record our state
+            Self::Partial(eager_macro, eager_call_sigil, state, stream) => {
+                eager_macro.to_tokens(tokens);
+                Group::new(
+                    Delimiter::Brace,
+                    eager_data(eager_call_sigil, state.to_token_stream(), stream.clone()),
+                )
+                .to_tokens(tokens);
+            }
+        }
     }
 }
 
@@ -402,66 +351,79 @@ impl ToTokens for FullyProccesedState {
         self.0.processed.append_to_stream(tokens);
     }
 }
-
 impl State {
     // Should only be called with the top level stream
-    pub fn decode_from_stream<F>(stream: TokenStream, expansion: F) -> Result<Self, Diagnostic>
+    pub fn decode_from_stream<F>(
+        stream: TokenStream,
+        reprocess: bool,
+        expansion: F,
+    ) -> Result<Option<Self>, Error>
     where
-        F: FnOnce(token_stream::IntoIter) -> token_stream::IntoIter,
+        F: FnOnce(token_stream::IntoIter) -> Result<token_stream::IntoIter, Error>,
     {
-        use Delimiter::Bracket;
-
         let span = Span::call_site();
         let mut stream = stream.into_iter();
-        let sigil = Literal::parse(EAGER_CALL_SIGIL).unwrap().into_owned();
-        expect_literal(stream.next_or(span), sigil)?;
+        if expect_call_literal(stream.next_or(span)) {
+            return Ok(None);
+        };
 
-        let group = expect_group(stream.next_or(span), Bracket).unwrap_or_abort();
+        let group = expect_group(stream.next_or(span), Delimiter::Bracket)?;
 
         let span = group.span();
         let mut group = group.stream().into_iter();
-        let state =
-            expect_group(group.next_or(span), Param::Named("eager2_state")).unwrap_or_abort();
+        let state = expect_group(group.next_or(span), Param::Named("eager2_state"))?;
         if group.next().is_some() {
-            abort!(span, "`eager2_state` should only contain one group")
+            return Err(Error {
+                span,
+                msg: "`eager2_state` should only contain one group".into(),
+                note: None,
+            });
         }
 
-        Ok(Self::decode_from_group(state, Some(expansion(stream))))
+        Self::decode_from_group(state, Some((reprocess, expansion(stream)?))).map(Some)
     }
 
     // Only should be called on encoded groups
     #[allow(clippy::needless_pass_by_value)]
-    fn decode_from_group(g: Group, extra: Option<token_stream::IntoIter>) -> Self {
+    fn decode_from_group(
+        g: Group,
+        extra: Option<(bool, token_stream::IntoIter)>,
+    ) -> Result<Self, Error> {
         use Delimiter::Bracket;
 
         let span = g.span();
         let delim = g.delimiter();
 
         let mut stream = g.stream().into_iter();
-        let mode = Mode::from(g.span(), stream.next());
-        let free = expect_group(stream.next_or(span), Bracket).unwrap_or_abort();
-        let locked = expect_group(stream.next_or(span), Bracket).unwrap_or_abort();
-        let processed = expect_group(stream.next_or(span), Bracket).unwrap_or_abort();
-        let stack = expect_group(stream.next_or(span), Param::Named("stack")).unwrap_or_abort();
+        let mode = expect_mode(stream.next_or(span), "mode")?;
+        let free = expect_group(stream.next_or(span), Bracket)?;
+        let locked = expect_group(stream.next_or(span), Bracket)?;
+        let processed = expect_group(stream.next_or(span), Bracket)?;
+        let stack = expect_group(stream.next_or(span), Param::Named("stack"))?;
 
-        let unprocessed = if let Some(extra) = extra {
-            vec![stream, extra]
-        } else {
-            vec![stream]
+        let mut processed: EfficientGroupV = processed.into();
+        let unprocessed = match extra {
+            Some((true, extra)) => vec![stream, extra],
+            Some((false, extra)) => {
+                processed.extend(extra);
+                vec![stream]
+            }
+            None => vec![stream],
         };
 
-        Self {
+        Ok(Self {
             span,
             delim,
             mode,
             free: free.into(),
             locked: locked.into(),
-            processed: processed.into(),
+            processed,
             stack: Stack::Raw(stack),
             unprocessed,
-        }
+        })
     }
 
+    #[must_use]
     pub fn new(span: Span, delim: Delimiter, mode: Mode, stream: TokenStream) -> Self {
         Self {
             span,
@@ -474,26 +436,27 @@ impl State {
             unprocessed: vec![stream.into_iter()],
         }
     }
-
     #[allow(clippy::result_large_err)]
-    pub fn process(
-        mut self,
-        found_crate: &str,
-    ) -> Result<FullyProccesedState, (State, MacroPath, TokenStream)> {
+    pub fn process(mut self, eager_call_sigil: &Literal) -> Result<ProcessingResult, Error> {
         while !self.unprocessed.is_empty() || !self.stack.is_empty() {
-            self.process_tokens(found_crate);
-            if let Some((path, stream)) = self.pop_stack(found_crate) {
-                return Err((self, path, stream));
+            self.process_tokens();
+            if let Some((path, stream)) = self.pop_stack()? {
+                return Ok(ProcessingResult::Partial(
+                    path,
+                    eager_call_sigil,
+                    self,
+                    stream,
+                ));
             }
         }
-        Ok(FullyProccesedState(self))
+        Ok(ProcessingResult::Done(FullyProccesedState(self)))
     }
 
     fn has_locking(&self) -> bool {
         !self.free.is_empty() || !self.locked.is_empty()
     }
 
-    fn process_tokens(&mut self, found_crate: &str) {
+    fn process_tokens(&mut self) {
         while let Some(tt) = self.unprocessed.pop_next() {
             let g = match tt {
                 TokenTree::Group(g) => g,
@@ -505,11 +468,7 @@ impl State {
 
             // lookback to see if this group is a macro param
             // (looking especially for mode-switching macros)
-            let tm = TrailingMacro::try_new(
-                found_crate,
-                self.processed.as_mut_vec(),
-                self.mode == Mode::Lazy,
-            );
+            let tm = TrailingMacro::try_new(self.processed.as_mut_vec(), self.mode == Mode::Lazy);
 
             let tm = match tm {
                 Ok(tm) => tm,
@@ -532,36 +491,25 @@ impl State {
                 .and_then(TrailingMacro::mode)
                 .unwrap_or(self.mode);
 
-            #[cfg(feature = "trace_macros")]
-            proc_macro_error2::emit_call_site_warning!(
-                "processing with mode {:?}: {}",
-                inner_mode,
-                g
-            );
-
             let stack = State::new(g.span(), g.delimiter(), inner_mode, g.stream());
             let stack = mem::replace(self, stack);
             self.stack = Stack::Processed(Box::new(stack), tm);
         }
     }
 
-    fn pop_stack(&mut self, found_crate: &str) -> Option<(MacroPath, TokenStream)> {
+    fn pop_stack(&mut self) -> Result<Option<(MacroPath, TokenStream)>, Error> {
         use TrailingMacro::{Exec, ModeSwitch, Unknown};
 
         debug_assert!(self.unprocessed.is_empty());
 
         // `stack`` is the caller, `self` is the completed recursive call
         let (mut stack, tm) = match self.stack.take() {
-            Stack::Empty => return None,
+            Stack::Empty => return Ok(None),
             Stack::Processed(p, tm) => (*p, tm),
-            Stack::Raw(r) if r.stream().is_empty() => return None,
+            Stack::Raw(r) if r.stream().is_empty() => return Ok(None),
             Stack::Raw(r) => {
-                let mut p = Self::decode_from_group(r, None);
-                let tm = TrailingMacro::try_new(
-                    found_crate,
-                    p.processed.as_mut_vec(),
-                    self.mode == Mode::Lazy,
-                );
+                let mut p = Self::decode_from_group(r, None)?;
+                let tm = TrailingMacro::try_new(p.processed.as_mut_vec(), self.mode == Mode::Lazy);
                 (p, tm.unwrap())
             }
         };
@@ -621,7 +569,7 @@ impl State {
                     stream,
                     &mut self.processed,
                     &mut self.unprocessed,
-                );
+                )?;
             }
             // Hand over execution to unknown macros if in eager mode
             (Some(Unknown(tm)), Mode::Eager) => {
@@ -630,7 +578,7 @@ impl State {
                 stack.free.append(stack.locked);
                 stack.free.append(stack.processed);
                 let stream = stack.free.into_stream();
-                return Some((path, stream));
+                return Ok(Some((path, stream)));
             }
 
             (_, Mode::Lazy) | (None, Mode::Eager) => {
@@ -639,13 +587,10 @@ impl State {
                 let stream = stack.free.into_stream();
                 let group = Group::new(stack.delim, stream);
 
-                #[cfg(feature = "trace_macros")]
-                proc_macro_error2::emit_call_site_warning!("finished_processing {}", group);
-
                 self.processed.push(TokenTree::Group(group));
             }
         }
 
-        None
+        Ok(None)
     }
 }

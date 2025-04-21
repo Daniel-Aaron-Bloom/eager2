@@ -1,0 +1,24 @@
+[package]
+name = "eager2"
+version = "1.0.1"
+authors = ["Daniel Bloom"]
+edition = "2021"
+categories = ["development-tools"]
+description = "Proc-macros for eager macro expansion"
+documentation = "https://docs.rs/eager2"
+license = "MIT"
+repository = "https://github.com/Daniel-Aaron-Bloom/eager2"
+readme = "../README.md"
+rust-version = "1.70"
+
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[dependencies]
+convert_case = "0.8.0"
+litrs = { version = "0.4", default-features = false }
+eager2-core = { workspace = true }
+
+[features]
+trace_macros = []

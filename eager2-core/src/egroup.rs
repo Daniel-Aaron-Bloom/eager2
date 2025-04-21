@@ -1,7 +1,6 @@
 use std::mem;
 
-use proc_macro2::{token_stream, Delimiter, Group, TokenStream, TokenTree};
-use quote::ToTokens;
+use crate::pm::{token_stream, Delimiter, Group, ToTokens, TokenStream, TokenTree};
 
 pub enum EfficientGroup<P> {
     Raw(Group),
@@ -109,11 +108,17 @@ impl EfficientGroupV {
             Self::Raw(g) => v.extend(g.stream()),
         }
     }
+    pub fn extend(&mut self, other: impl IntoIterator<Item = TokenTree>) {
+        let v = self.as_mut_vec();
+        v.extend(other);
+    }
+    #[must_use]
     pub fn take(&mut self) -> Self {
         mem::replace(self, Self::Processed(vec![]))
     }
 }
 impl EfficientGroupT {
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Processed(p) => p.is_empty(),
@@ -126,6 +131,7 @@ impl EfficientGroupT {
             Self::Raw(g) => tokens.extend(g.stream()),
         }
     }
+    #[must_use]
     pub fn into_stream(self) -> TokenStream {
         match self {
             Self::Processed(p) => p,

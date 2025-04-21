@@ -165,11 +165,12 @@ When exporting a macro which calls into this crate, some care must be taken to d
 correct paths. The recommended convention is to add:
 ```rust
 #[doc(hidden)]
-pub use eager2;
+pub extern crate eager2;
 ```
 
 to the root of your crate and to utilize the `$crate::eager2::` prefix to call any macros when
-in a lazy environment (eager environments should not require any prefix).
+in a lazy environment (eager environments should not require any prefix, but will identify macro
+items with the `$crate::eager2::` as belonging to this crate).
 
 ## Documentation Convention
 

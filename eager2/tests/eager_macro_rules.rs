@@ -34,7 +34,7 @@ mod test_produces_at_least_the_same {
 }
 
 mod test_eager {
-    use eager2::{eager, eager_macro_rules};
+    use eager2::eager;
     /*
     Test that a declared macro will work as if it was produced with 'macro_rules'
     when not called through'eager'
