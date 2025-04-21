@@ -3,4 +3,4 @@ resolver = "2"
 members = ["eager2", "eager2-core"]
 
 [workspace.dependencies]
-eager2-core = { path = "./eager2-core" }
+eager2-core = { path = "./eager2-core", version = "1.0.1" }
