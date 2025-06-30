@@ -1,6 +1,6 @@
 [package]
 name = "eager2-core"
-version = "1.0.1"
+version = "1.1.1"
 authors = ["Daniel Bloom"]
 edition = "2021"
 categories = ["development-tools"]
@@ -9,7 +9,7 @@ documentation = "https://docs.rs/eager2"
 license = "MIT"
 repository = "https://github.com/Daniel-Aaron-Bloom/eager2"
 readme = "../README.md"
-rust-version = "1.70"
+rust-version = "1.88"
 
 [lib]
 path = "src/lib.rs"

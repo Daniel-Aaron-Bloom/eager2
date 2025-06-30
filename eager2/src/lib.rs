@@ -28,7 +28,7 @@
 //! # Usage
 //!
 //! ```
-//! use eager2::{eager_macro, eager};
+//! use eager2::{eager, eager_macro};
 //!
 //! //Declare an eager macro
 //! #[eager_macro]
@@ -37,7 +37,7 @@
 //! }
 //!
 //! // Use the macro inside an eager! call to expand it eagerly
-//! assert_eq!(4, eager!{2 plus_1!() plus_1!()});
+//! assert_eq!(4, eager! {2 plus_1!() plus_1!()});
 //! ```
 //!
 //! # Environments
@@ -62,7 +62,7 @@
 //! powerful way.
 //!
 //! ```
-//! use eager2::{eager_macro, eager, unstringify};
+//! use eager2::{eager, eager_macro, unstringify};
 //!
 //! #[eager_macro]
 //! macro_rules! my_concat_idents {
@@ -72,7 +72,7 @@
 //! }
 //!
 //! // std::concat_idents can't do this
-//! eager!{
+//! eager! {
 //!     fn my_concat_idents!(foo, bar)() -> u32 { 23 }
 //! }
 //!
@@ -91,7 +91,7 @@
 //! ```
 //! // The default rust environment is lazy
 //! # use eager2::eager;
-//! eager!{
+//! eager! {
 //!
 //!     // This environment is eager
 //!
@@ -100,18 +100,18 @@
 //!         // Still eager, `mod` and other declarations don't impact the environment
 //!
 //!         lazy!{
-//!             
+//!
 //!             // Back to lazy
-//!             
+//!
 //!             eager!{
 //!                 // Eager again
 //!             }
-//!             
+//!
 //!             // Back to lazy
 //!         }
 //!
 //!         // Back to eager
-//!         
+//!
 //!         suspend_eager!{
 //!
 //!             // Back to lazy
@@ -125,7 +125,7 @@
 //!                 // import `eager`. This is something to be aware of when mixing
 //!                 // lazy and eager.
 //!             }
-//!         
+//!
 //!         }
 //!         // Back to eager
 //!     }
@@ -144,7 +144,7 @@
 //!     ()=>{ foo() {} };
 //! }
 //!
-//! eager!{
+//! eager! {
 //!     // This is legal
 //!     fn lazy!{eager!{ fn_body!{} }}
 //!
@@ -246,15 +246,15 @@ mod rules;
 /// ```
 /// /// Some documentation
 /// #[macro_export]
-/// macro_rules! some_macro{
-///     ()=>{};
+/// macro_rules! some_macro {
+///     () => {};
 /// }
 /// ```
 /// is done by wrapping it in `eager_macro_rules!` as follows:
 /// ```
 /// use eager2::eager_macro_rules;
 ///
-/// eager_macro_rules!{
+/// eager_macro_rules! {
 ///     /// Some documentation
 ///     #[macro_export]
 ///     macro_rules! some_macro{
@@ -296,7 +296,7 @@ pub fn eager_macro_rules(stream: TokenStream) -> TokenStream {
 /// #[macro_export]
 /// // or here
 /// macro_rules! some_macro {
-///     ()=>{};
+///     () => {};
 /// }
 /// ```
 /// is done by adding the `#[eager_macro]` attribute:
@@ -305,7 +305,7 @@ pub fn eager_macro_rules(stream: TokenStream) -> TokenStream {
 /// #[macro_export]
 /// #[eager2::eager_macro] // aesthetically here looks best, but you do you
 /// macro_rules! some_macro {
-///     ()=>{};
+///     () => {};
 /// }
 /// ```
 ///
@@ -317,7 +317,6 @@ pub fn eager_macro_rules(stream: TokenStream) -> TokenStream {
 /// environment state, followed by the original match expression of the rule. These rules expand to
 /// a macro call into this crate's environment evaluator with the environment state followed by the
 /// original expansion of the rule.
-///
 #[proc_macro_attribute]
 pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
     #[allow(clippy::useless_conversion)]
@@ -329,7 +328,7 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 /// # Examples
 ///
 /// ```
-/// use eager2::{eager_macro, eager};
+/// use eager2::{eager, eager_macro};
 ///
 /// //Declare an eager macro
 /// #[eager_macro]
@@ -337,10 +336,8 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 ///     ()=>{+ 1};
 /// }
 ///
-/// fn main(){
-///     // Use the macro inside an eager! call to expand it eagerly
-///     assert_eq!(4, eager!{2 plus_1!() plus_1!()});
-/// }
+/// // Use the macro inside an eager! call to expand it eagerly
+/// assert_eq!(4, eager! {2 plus_1!() plus_1!()});
 /// ```
 ///
 /// # Usage
@@ -395,19 +392,19 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 /// With eager expansion, this can be made possible:
 ///
 /// ```
-/// use eager2::{eager_macro, eager};
+/// use eager2::{eager, eager_macro};
 ///
 /// #[eager_macro]
-/// macro_rules! add{
-///     ($e1:expr, $e2:expr)=> {$e1 + $e2}
+/// macro_rules! add {
+///     ($e1:expr, $e2:expr) => { $e1 + $e2 };
 /// }
 ///
-///#[eager_macro]
+/// #[eager_macro]
 /// macro_rules! two_and_three{
 ///     ()=>{2,3}
 /// }
 ///
-/// let x = eager!{add!(two_and_three!())};
+/// let x = eager! {add!(two_and_three!())};
 /// assert_eq!(5, x);
 /// ```
 ///
@@ -430,7 +427,7 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 ///
 /// use eager2::{eager_macro, lazy};
 ///
-///#[eager_macro]
+/// #[eager_macro]
 /// macro_rules! two_and_three {
 ///     ()=>{2,3}
 /// }
@@ -459,23 +456,21 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
 /// With eager expansion, `id!` will expand before the `eager!` block , making it possible to use it
 /// in an identifier position:
 /// ```
-/// use eager2::{eager_macro, eager};
+/// use eager2::{eager, eager_macro};
 ///
 /// #[eager_macro]
 /// macro_rules! id {
-///     ()=> {SomeStruct}
+///     () => { SomeStruct };
 /// }
 ///
-/// eager!{
+/// eager! {
 ///     struct id!(){
 ///         v: u32
 ///     }
 /// }
 ///
-/// fn main(){
-///     let some_struct = SomeStruct{v: 4};
-///     assert_eq!(4, some_struct.v);
-/// }
+/// let some_struct = SomeStruct { v: 4 };
+/// assert_eq!(4, some_struct.v);
 /// ```
 /// To circumvent any restriction on where macros can be used, we can therefore just wrap
 /// the code surrounding the macro call with `eager!`. The `eager!` must still be in a valid position,
@@ -847,7 +842,7 @@ pub fn ccase(stream: TokenStream) -> TokenStream {
 /// ```
 /// use eager2::eager;
 ///
-/// eager!{
+/// eager! {
 ///     eager_coalesce!{{}, {let v = 10;}, {let v = 100;}}
 /// }
 /// assert_eq!(v, 10);

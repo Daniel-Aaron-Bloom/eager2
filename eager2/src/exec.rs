@@ -118,7 +118,7 @@ pub fn execute_concat(
     Ok(())
 }
 
-fn case_value_parser(span: Span, s: &str) -> Result<Case, Error> {
+fn case_value_parser(span: Span, s: &str) -> Result<Case<'_>, Error> {
     const ALL_CASES: &[(&str, Case)] = &{
         [
             ("snake", Case::Snake),

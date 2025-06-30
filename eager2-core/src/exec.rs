@@ -171,14 +171,29 @@ fn execute_compile_error(
 
 fn execute_column(
     span: Span,
-    mut _args: &mut dyn Iterator<Item = TokenTree>,
-    _processed_out: &mut EfficientGroupV,
+    args: &mut dyn Iterator<Item = TokenTree>,
+    processed_out: &mut EfficientGroupV,
 ) -> Result<(), Error> {
-    Err(Error {
-        span,
-        msg: "eager `column!` is not implemented yet.".into(),
-        note: None,
-    })
+    if args.next().is_some() {
+        return Err(Error {
+            span,
+            msg: "`column!()` takes no arguments".into(),
+            note: None,
+        });
+    }
+
+    let column = span.column();
+    let Ok(column) = column.try_into() else {
+        return Err(Error {
+            span,
+            msg: format!("`column `{column}` out of range for `u32`").into(),
+            note: None,
+        });
+    };
+
+    let tt = TokenTree::Literal(Literal::u32_suffixed(column));
+    processed_out.push(tt);
+    Ok(())
 }
 
 fn execute_env(
@@ -278,14 +293,21 @@ fn execute_option_env(
 
 fn execute_file(
     span: Span,
-    mut _args: &mut dyn Iterator<Item = TokenTree>,
-    _processed_out: &mut EfficientGroupV,
+    args: &mut dyn Iterator<Item = TokenTree>,
+    processed_out: &mut EfficientGroupV,
 ) -> Result<(), Error> {
-    Err(Error {
-        span,
-        msg: "eager `file!` is not implemented yet.".into(),
-        note: None,
-    })
+    if args.next().is_some() {
+        return Err(Error {
+            span,
+            msg: "`file!()` takes no arguments".into(),
+            note: None,
+        });
+    }
+
+    let file = span.file();
+    let tt = TokenTree::Literal(Literal::string(&file));
+    processed_out.push(tt);
+    Ok(())
 }
 
 fn execute_stringify(
@@ -377,14 +399,29 @@ fn execute_include_bytes(
 
 fn execute_line(
     span: Span,
-    _args: &mut dyn Iterator<Item = TokenTree>,
-    _processed_out: &mut EfficientGroupV,
+    args: &mut dyn Iterator<Item = TokenTree>,
+    processed_out: &mut EfficientGroupV,
 ) -> Result<(), Error> {
-    Err(Error {
-        span,
-        msg: "eager `line!` is not implemented yet.".into(),
-        note: None,
-    })
+    if args.next().is_some() {
+        return Err(Error {
+            span,
+            msg: "`line!()` takes no arguments".into(),
+            note: None,
+        });
+    }
+
+    let line = span.line();
+    let Ok(line) = line.try_into() else {
+        return Err(Error {
+            span,
+            msg: format!("`line `{line}` out of range for `u32`").into(),
+            note: None,
+        });
+    };
+
+    let tt = TokenTree::Literal(Literal::u32_suffixed(line));
+    processed_out.push(tt);
+    Ok(())
 }
 
 fn execute_module_path(

@@ -3,6 +3,7 @@
 [![crates.io](https://img.shields.io/crates/v/eager2.svg?style=for-the-badge&color=fc8d62&logo=rust)](https://crates.io/crates/eager2)
 [![docs.rs](https://img.shields.io/badge/docs.rs-eager2-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs)](https://docs.rs/eager2)
 [![build status](https://img.shields.io/github/actions/workflow/status/Daniel-Aaron-Bloom/eager2/ci.yml?branch=master&style=for-the-badge)](https://github.com/Daniel-Aaron-Bloom/eager2/actions?query=branch%3Amaster)
+[![free of syn](https://img.shields.io/badge/free%20of-syn-hotpink)](https://github.com/fasterthanlime/free-of-syn)
 
 
 This crate contains five core macros used to simulate eager macro expansion:
@@ -34,7 +35,7 @@ See each macro's documentation for details.
 ## Usage
 
 ```rust
-use eager2::{eager_macro, eager};
+use eager2::{eager, eager_macro};
 
 //Declare an eager macro
 #[eager_macro]
@@ -43,7 +44,7 @@ macro_rules! plus_1{
 }
 
 // Use the macro inside an eager! call to expand it eagerly
-assert_eq!(4, eager!{2 plus_1!() plus_1!()});
+assert_eq!(4, eager! {2 plus_1!() plus_1!()});
 ```
 
 ## Environments
@@ -68,7 +69,7 @@ invalidity enables things like `concat_idents` to be trivially constructed in a 
 powerful way.
 
 ```rust
-use eager2::{eager_macro, eager, unstringify};
+use eager2::{eager, eager_macro, unstringify};
 
 #[eager_macro]
 macro_rules! my_concat_idents {
@@ -78,7 +79,7 @@ macro_rules! my_concat_idents {
 }
 
 // std::concat_idents can't do this
-eager!{
+eager! {
     fn my_concat_idents!(foo, bar)() -> u32 { 23 }
 }
 
@@ -96,7 +97,7 @@ The three macros which control the current environment are `eager!`, `lazy!`, an
 `suspend_eager!`. They work as follows
 ```rust
 // The default rust environment is lazy
-eager!{
+eager! {
 
     // This environment is eager
 
@@ -149,7 +150,7 @@ macro_rules! fn_body{
     ()=>{ foo() {} };
 }
 
-eager!{
+eager! {
     // This is legal
     fn lazy!{eager!{ fn_body!{} }}
 

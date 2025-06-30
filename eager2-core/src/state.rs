@@ -437,7 +437,7 @@ impl State {
         }
     }
     #[allow(clippy::result_large_err)]
-    pub fn process(mut self, eager_call_sigil: &Literal) -> Result<ProcessingResult, Error> {
+    pub fn process(mut self, eager_call_sigil: &Literal) -> Result<ProcessingResult<'_>, Error> {
         while !self.unprocessed.is_empty() || !self.stack.is_empty() {
             self.process_tokens();
             if let Some((path, stream)) = self.pop_stack()? {

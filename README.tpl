@@ -3,6 +3,7 @@
 [![crates.io](https://img.shields.io/crates/v/eager2.svg?style=for-the-badge&color=fc8d62&logo=rust)](https://crates.io/crates/eager2)
 [![docs.rs](https://img.shields.io/badge/docs.rs-eager2-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs)](https://docs.rs/eager2)
 [![build status](https://img.shields.io/github/actions/workflow/status/Daniel-Aaron-Bloom/eager2/ci.yml?branch=master&style=for-the-badge)](https://github.com/Daniel-Aaron-Bloom/eager2/actions?query=branch%3Amaster)
+[![free of syn](https://img.shields.io/badge/free%20of-syn-hotpink)](https://github.com/fasterthanlime/free-of-syn)
 
 {{readme}}
 
