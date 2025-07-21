@@ -238,9 +238,10 @@ impl ModeSwitchTrailingMacro {
     }
 }
 impl ExecutableTrailingMacro {
-    fn truncate(self, tokens: &mut Vec<TokenTree>) -> ExecutableMacroType {
+    fn truncate(self, tokens: &mut Vec<TokenTree>) -> (Span, ExecutableMacroType) {
+        let path_span = tokens[self.offset].span();
         tokens.truncate(self.offset);
-        self.exec
+        (path_span, self.exec)
     }
 }
 impl UnknownTrailingMacro {
@@ -557,7 +558,7 @@ impl State {
             }
             // Execute known macros
             (Some(Exec(tm)), Mode::Eager) => {
-                let macro_type = tm.truncate(self.processed.as_mut_vec());
+                let (path_span, macro_type) = tm.truncate(self.processed.as_mut_vec());
                 let stream = stack
                     .free
                     .into_iter()
@@ -565,6 +566,7 @@ impl State {
                     .chain(stack.processed);
 
                 macro_type.execute(
+                    path_span,
                     stack.span,
                     stream,
                     &mut self.processed,
