@@ -19,4 +19,4 @@ proc-macro2 = { version = "1", optional = true }
 quote = { version = "1", optional = true }
 
 [features]
-"testing" = ["proc-macro2", "quote"]
+testing = ["dep:proc-macro2", "dep:quote"]

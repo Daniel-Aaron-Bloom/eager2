@@ -1,5 +1,7 @@
-//! This library is not meant for public consumption
+#![cfg_attr(rustchan = "nightly", feature(proc_macro_span))]
+#![recursion_limit = "1024"]
 
+//! This library is not meant for public consumption
 #![doc(hidden)]
 
 use std::borrow::Cow;
@@ -50,6 +52,28 @@ pub mod pm {
     impl ToTokens for TokenTree {
         fn to_tokens(&self, tokens: &mut TokenStream) {
             tokens.extend([self.clone()]);
+        }
+    }
+    impl ToTokens for TokenStream {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            tokens.extend([self.clone()]);
+        }
+    }
+    impl ToTokens for &str {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            Literal::string(self).to_tokens(tokens);
+        }
+    }
+    impl<const N: usize, T: ToTokens> ToTokens for [T; N] {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            for item in self {
+                item.to_tokens(tokens);
+            }
+        }
+    }
+    impl<T: ToTokens> ToTokens for &T {
+        fn to_tokens(&self, tokens: &mut TokenStream) {
+            (*self).to_tokens(tokens);
         }
     }
 }

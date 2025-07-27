@@ -21,4 +21,4 @@ litrs = { version = "0.4", default-features = false }
 eager2-core = { workspace = true }
 
 [features]
-trace_macros = []
+trace-macros = []
