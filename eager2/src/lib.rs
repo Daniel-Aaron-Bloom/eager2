@@ -322,6 +322,13 @@ pub fn eager_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
     rules::eager_macro(attr.into(), stream.into()).into()
 }
 
+/// Declares an [eager!](macro.eager.html)-enabled proc-macro.
+#[proc_macro_attribute]
+pub fn eager_proc_macro(attr: TokenStream, stream: TokenStream) -> TokenStream {
+    #[allow(clippy::useless_conversion)]
+    rules::eager_proc_macro(attr.into(), stream.into()).into()
+}
+
 /// [[eager!](macro.eager.html)] Emulates eager expansion of macros.
 ///
 /// # Examples

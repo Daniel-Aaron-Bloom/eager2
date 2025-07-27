@@ -8,13 +8,34 @@ pub const LAZY_SIGIL: &str = "𓆉";
 pub const EAGER_SIGIL: &str = "𓂺";
 
 #[must_use]
+#[inline(always)]
 pub fn get_eager_2_ident() -> Ident {
     Ident::new(EAGER2_IDENT, Span::call_site())
 }
 
 #[must_use]
+#[inline(always)]
+pub(crate) fn get_eager_2_pm_ident(suffix: Option<&str>) -> Ident {
+    Ident::new(
+        format!("{EAGER2_IDENT}{s}", s = suffix.unwrap_or_default()).as_str(),
+        Span::call_site(),
+    )
+}
+
+#[must_use]
+#[inline(always)]
 pub fn eager_call_sigil() -> Literal {
     Literal::from_str(EAGER_CALL_SIGIL).unwrap()
+}
+
+#[must_use]
+#[inline(always)]
+pub(crate) fn eager_call_sigil_proc_macro() -> TokenStream {
+    use crate::interpolate;
+
+    interpolate! {
+        ::proc_macro::Literal::from_str(#EAGER_CALL_SIGIL).unwrap()
+    }
 }
 
 #[must_use]

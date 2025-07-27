@@ -1,6 +1,6 @@
 [package]
-name = "eager2"
-version = "1.1.3"
+name = "dummy"
+version = "1.1.2"
 authors = ["Daniel Bloom"]
 edition = "2021"
 categories = ["development-tools"]
@@ -16,12 +16,5 @@ proc-macro = true
 path = "src/lib.rs"
 
 [dependencies]
-convert_case = "0.8.0"
-litrs = { version = "0.4", default-features = false }
+eager2 = { path = "../eager2" }
 eager2-core = { workspace = true }
-
-[dev-dependencies]
-dummy = { path = "../dummy" }
-
-[features]
-trace-macros = []

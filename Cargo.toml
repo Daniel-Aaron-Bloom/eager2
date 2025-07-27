@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["eager2", "eager2-core"]
+members = ["eager2", "eager2-core", "dummy"]
 
 [workspace.dependencies]
 eager2-core = { path = "./eager2-core", version = "1.1.2" }
