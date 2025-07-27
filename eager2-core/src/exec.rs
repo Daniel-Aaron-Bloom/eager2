@@ -84,16 +84,18 @@ impl TryFrom<&str> for ExecutableMacroType {
 impl ExecutableMacroType {
     pub fn execute(
         self,
+        path_span: Span,
         span: Span,
         stream: impl IntoIterator<Item = TokenTree>,
         processed: &mut EfficientGroupV,
         unprocessed: &mut Vec<token_stream::IntoIter>,
     ) -> Result<(), Error> {
-        self.execute_impl(span, &mut stream.into_iter(), processed, unprocessed)
+        self.execute_impl(path_span, span, &mut stream.into_iter(), processed, unprocessed)
     }
 
     fn execute_impl(
         self,
+        path_span: Span,
         span: Span,
         args: &mut dyn Iterator<Item = TokenTree>,
         processed: &mut EfficientGroupV,
@@ -106,7 +108,7 @@ impl ExecutableMacroType {
                 let fexecs = FNS.get().unwrap();
                 (fexecs.execute_concat)(span, args, processed)
             }
-            Self::Column => execute_column(span, args, processed),
+            Self::Column => execute_column(path_span, args, processed),
             Self::Env => execute_env(span, args, processed),
             Self::File => execute_file(span, args, processed),
             Self::Stringify => {
@@ -116,7 +118,7 @@ impl ExecutableMacroType {
             Self::Include => execute_include(span, args, unprocessed),
             Self::IncludeBytes => execute_include_bytes(span, args, processed),
             Self::IncludeStr => execute_include_str(span, args, processed),
-            Self::Line => execute_line(span, args, processed),
+            Self::Line => execute_line(path_span, args, processed),
             Self::ModulePath => execute_module_path(span, args, processed),
             Self::OptionEnv => execute_option_env(span, args, processed),
 

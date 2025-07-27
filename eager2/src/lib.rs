@@ -8,12 +8,11 @@
 //! * [`eager_macro_rules!`]: The legacy way to declares one or more eager-enabled macro.
 //!
 //! In addition to these primary macros, eager versions of standard library are provided (macros
-//! only useful at runtime like `vec` are still lazy and `cfg!`, `column!`, `file!`, `line!`, and
-//! `module_path!` are reserved for future implementation). If you wish to use the lazy versions of
-//! the standard library, you can either insert a `lazy!{}` or `suspend_eager!{}` block around
-//! them, or use the full path (e.g. `std::concat`). Please note the latter of which will only work
-//! for macros from `std`, `core`, and `alloc`. All other lazy macro calls must be wrapped in `lazy`
-//! or `suspend_eager`.
+//! only useful at runtime like `vec` are still lazy and `cfg!` and `module_path!` are reserved for
+//! future implementation). If you wish to use the lazy versions of the standard library, you can
+//! either insert a `lazy!{}` or `suspend_eager!{}` block around them, or use the full path (e.g.
+//! `std::concat`). Please note the latter of which will only work for macros from `std`, `core`,
+//! and `alloc`. All other lazy macro calls must be wrapped in `lazy` or `suspend_eager`.
 //!
 //! Some additional helpers are also provided:
 //!
@@ -592,8 +591,6 @@ pub fn cfg(stream: TokenStream) -> TokenStream {
     impls::eager_wrap(stream.into(), "cfg").into()
 }
 
-/// 🚧 Not yet implemented!
-///
 /// [[eager!](macro.eager.html)] Expands to the column number at which it was invoked.
 ///
 /// With [`line!`] and [`file!`], these macros provide debugging information for
@@ -662,8 +659,6 @@ pub fn option_env(stream: TokenStream) -> TokenStream {
     impls::eager_wrap(stream.into(), "option_env").into()
 }
 
-/// 🚧 Not yet implemented!
-///
 /// [[eager!](macro.eager.html)] Expands to the file name in which it was invoked.
 ///
 /// With [`line!`] and [`column!`], these macros provide debugging information for
@@ -727,8 +722,6 @@ pub fn include_str(stream: TokenStream) -> TokenStream {
     impls::eager_wrap(stream.into(), "include_str").into()
 }
 
-/// 🚧 Not yet implemented!
-///
 /// [[eager!](macro.eager.html)] Expands to the line number on which it was invoked.
 ///
 /// With [`column!`] and [`file!`], these macros provide debugging information for
