@@ -90,7 +90,13 @@ impl ExecutableMacroType {
         processed: &mut EfficientGroupV,
         unprocessed: &mut Vec<token_stream::IntoIter>,
     ) -> Result<(), Error> {
-        self.execute_impl(path_span, span, &mut stream.into_iter(), processed, unprocessed)
+        self.execute_impl(
+            path_span,
+            span,
+            &mut stream.into_iter(),
+            processed,
+            unprocessed,
+        )
     }
 
     fn execute_impl(
